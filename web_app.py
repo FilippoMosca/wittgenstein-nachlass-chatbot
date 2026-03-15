@@ -1,0 +1,321 @@
+from __future__ import annotations
+
+import os
+import base64
+from pathlib import Path
+from typing import Any, Dict, Set
+
+import streamlit as st
+from dotenv import load_dotenv
+
+from witt_histochat_jupyter import HistoryBot
+
+
+load_dotenv()
+
+st.set_page_config(
+    page_title="Wittgenstein Nachlass Chatbot",
+    layout="wide",
+)
+
+BASE_DIR = Path("/Users/filippomosca/Downloads/witt-histochat-main")
+DEFAULT_JSON_PATH = str(BASE_DIR / "assets-json" / "DF-wittgenstein-nonNAComma_FULL.json")
+WITTGENSTEIN_IMG_PATH = BASE_DIR / "other" / "wittgenstein_pic.png"
+
+DEFAULT_TEMPLATE = (
+    " You are an assistant for question-answering tasks, primarily for answering questions "
+    "about Ludwig Wittgenstein. The context will primarily be in German, with some parts in English. "
+    "Use only the provided retrieved context to answer the question. Keep the answer accurate and "
+    "well-explained. Only respond with 'I don't know', if the provided retrieved context is completely irrelevant to the question. "
+)
+
+ACCENT_RED = "#ff4b4b"
+
+
+@st.cache_resource
+def get_bot(
+    json_searchindex_file_path: str,
+    default_temperature: float,
+    default_k_num: int,
+    retrieval_min_query_chars: int,
+    debug: bool,
+) -> HistoryBot:
+    return HistoryBot(
+        json_searchindex_file_path=json_searchindex_file_path,
+        default_temperature=default_temperature,
+        default_k_num=default_k_num,
+        retrieval_min_query_chars=retrieval_min_query_chars,
+        debug=debug,
+    )
+
+
+if "last_out" not in st.session_state:
+    st.session_state.last_out = None
+
+if "last_question" not in st.session_state:
+    st.session_state.last_question = ""
+
+if "question_input" not in st.session_state:
+    st.session_state.question_input = ""
+
+
+def get_used_sigla(sources: Any) -> Set[str]:
+    sigla_used: Set[str] = set()
+
+    if not sources or sources == ["No source"]:
+        return sigla_used
+
+    if isinstance(sources, dict):
+        sigla_used.update(sources.get("exact_siglum", []))
+        sigla_used.update(sources.get("partial_siglum", []))
+    elif isinstance(sources, list):
+        sigla_used.update(sources)
+
+    return {s for s in sigla_used if s}
+
+
+def render_sources_text(out: Dict[str, Any], *, max_chars: int = 1200) -> None:
+    docs = out.get("docs", []) or []
+    sources = out.get("sources", [])
+    sigla_used = get_used_sigla(sources)
+
+    if not docs:
+        st.warning("No documents were retrieved.")
+        return
+
+    if not sigla_used:
+        st.info("No sources declared by LLM2.")
+        return
+
+    shown = 0
+
+    for doc in docs:
+        sig = doc.metadata.get("siglum", "")
+        if sig not in sigla_used:
+            continue
+
+        shown += 1
+        datefrom = doc.metadata.get("datefrom", "")
+        dateto = doc.metadata.get("dateto", "")
+        text = (doc.page_content or "").replace("\n", " ").strip()
+
+        if len(text) > max_chars:
+            text = text[:max_chars] + "…"
+
+        with st.container(border=True):
+            st.markdown(f"### `{sig}`")
+            st.markdown(f"**Period:** {datefrom}–{dateto}")
+            st.markdown(f"> {text}")
+
+    if shown == 0:
+        st.info("No declared sources were found among the retrieved documents.")
+
+
+def render_debug_panel(out: Dict[str, Any], bot: HistoryBot) -> None:
+    with st.expander("Debug info", expanded=True):
+        st.write("Index:", os.getenv("AZURE_AI_SEARCH_INDEX_NAME"))
+        st.write("Valid refs:", out.get("valid_refs_df"))
+        st.write("Invalid refs:", out.get("invalid_refs_df"))
+        st.write("Document-level refs:", out.get("document_level_refs"))
+        st.write("Date normalization mode:", out.get("date_normalization_mode"))
+        st.write("Filter expression:", out.get("filter_expression"))
+        st.write("Retrieval query:", out.get("retrieval_query"))
+        st.write("Retrieval fallback used:", out.get("retrieval_query_fallback_used"))
+        st.write("Retrieved docs:", len(out.get("docs", []) or []))
+        st.write("Top 5 retrieved sigla:", (out.get("docs_siglum") or [])[:5])
+        st.write("Candidate pool size:", getattr(bot, "last_candidate_pool_size", 0) or 0)
+        st.write("Candidate pool preview:", (getattr(bot, "last_candidate_pool_preview", []) or [])[:5])
+
+
+def image_to_base64(path: Path) -> str:
+    if not path.exists():
+        return ""
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")
+
+
+st.markdown(
+    f"""
+    <style>
+        a.anchor-link {{
+            display: none !important;
+        }}
+
+        header[data-testid="stHeader"] {{
+            display: none !important;
+        }}
+
+        div[data-testid="stToolbar"] {{
+            display: none !important;
+        }}
+
+        .block-container {{
+            padding-top: 1.2rem;
+            padding-bottom: 2rem;
+            max-width: 1100px;
+        }}
+
+        div.stButton > button {{
+            width: 56px;
+            height: 56px;
+            border-radius: 999px;
+            font-size: 1.3rem;
+            font-weight: 700;
+            padding: 0;
+        }}
+
+        div[data-testid="stSidebar"] {{
+            min-width: 300px;
+        }}
+
+        .witt-header-wrap {{
+            margin-bottom: 1rem;
+        }}
+
+        .witt-subtitle {{
+            margin-top: -0.1rem;
+            opacity: 0.9;
+        }}
+
+        .witt-portrait-card {{
+            width: 96px;
+            height: 96px;
+            border-radius: 14px;
+            background: {ACCENT_RED};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-sizing: border-box;
+            padding: 6px;
+            margin-top: 0.65rem;
+        }}
+
+        .witt-portrait-card img {{
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 10px;
+            display: block;
+        }}
+
+        .witt-title-box {{
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 96px;
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+header_col1, header_col2 = st.columns([1.0, 9.0], gap="medium")
+
+with header_col1:
+    img_b64 = image_to_base64(WITTGENSTEIN_IMG_PATH)
+    if img_b64:
+        st.markdown(
+            f"""
+            <div class="witt-portrait-card">
+                <img src="data:image/png;base64,{img_b64}" alt="Wittgenstein portrait" />
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+with header_col2:
+    st.markdown(
+        """
+        <div class="witt-title-box">
+            <div class="witt-header-wrap">
+                <h1 style="margin-bottom: 0.2rem;">Wittgenstein Nachlass Chatbot</h1>
+                <div class="witt-subtitle">A RAG-based Q&A interface for exploring Wittgenstein through his philosophical Nachlass.</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+with st.sidebar:
+    st.header("Configuration")
+
+    k_num = st.slider(
+        "Number of retrieved remarks (k)",
+        min_value=10,
+        max_value=500,
+        value=500,
+        step=10,
+    )
+
+    temperature = st.slider(
+        "Temperature",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.6,
+        step=0.01,
+    )
+
+    show_debug = st.checkbox("Show debug panel", value=False)
+
+
+try:
+    bot = get_bot(
+        json_searchindex_file_path=DEFAULT_JSON_PATH,
+        default_temperature=temperature,
+        default_k_num=k_num,
+        retrieval_min_query_chars=6,
+        debug=False,
+    )
+except Exception as e:
+    st.error(f"Failed to initialize HistoryBot: {e}")
+    st.stop()
+
+
+question = st.text_area(
+    "Question",
+    placeholder="Ask your query on Wittgenstein Nachlass",
+    height=120,
+    label_visibility="collapsed",
+    key="question_input",
+)
+
+ask_clicked = st.button("➜")
+
+
+if ask_clicked:
+    if not question.strip():
+        st.warning("Please enter a question.")
+    else:
+        with st.spinner("Running retrieval and answer generation..."):
+            try:
+                out = bot.ask(
+                    question,
+                    user_template_text=DEFAULT_TEMPLATE,
+                    k=k_num,
+                    temperature=temperature,
+                )
+                st.session_state.last_out = out
+                st.session_state.last_question = question
+            except Exception as e:
+                st.error(f"Error while running the chatbot: {e}")
+                st.stop()
+
+
+if st.session_state.last_out is not None:
+    out = st.session_state.last_out
+
+    st.markdown("## Answer")
+    answer = (out.get("answer") or "").strip()
+    st.write(answer if answer else "_(empty)_")
+
+    st.markdown("## Sources")
+    st.code(str(out.get("sources", [])))
+
+    with st.expander("Sources – text", expanded=True):
+        render_sources_text(out, max_chars=1200)
+
+    if show_debug:
+        render_debug_panel(out, bot)
