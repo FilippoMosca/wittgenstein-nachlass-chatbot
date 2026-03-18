@@ -139,7 +139,10 @@ class HistoryBot:
 
     def __init__(
         self,
-        json_searchindex_file_path: str = "/Users/filippomosca/Downloads/witt-histochat-main/assets-json/DF-wittgenstein-nonNAComma_FULL.json",
+        json_searchindex_file_path: str = os.getenv(
+            "WITT_DF_PATH",
+            "assets-json/DF-wittgenstein-nonNAComma_FULL.json"
+        ),
         default_temperature: float = 1.0,
         default_k_num: int = 500,
         retrieval_min_query_chars: int = 6,
@@ -1160,7 +1163,10 @@ if __name__ == "__main__":
 
     q = sys.argv[1]
     bot = HistoryBot(
-        json_searchindex_file_path="/Users/filippomosca/Downloads/witt-histochat-main/assets-json/DF-wittgenstein-nonNAComma_FULL.json",
+        json_searchindex_file_path=os.getenv(
+            "WITT_DF_PATH",
+            "assets-json/DF-wittgenstein-nonNAComma_FULL.json"
+        ),
         debug=True,
     )
     out = bot.ask(q, k=10)
