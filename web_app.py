@@ -6,10 +6,14 @@ from pathlib import Path
 from typing import Any, Dict, Set
 
 import streamlit as st
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ModuleNotFoundError:
+    pass
 
 from witt_histochat_jupyter import HistoryBot
-
 
 load_dotenv()
 
