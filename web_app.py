@@ -13,14 +13,31 @@ try:
 except ModuleNotFoundError:
     pass
 
-from witt_histochat_jupyter import HistoryBot
-
-load_dotenv()
-
 st.set_page_config(
     page_title="Wittgenstein Nachlass Chatbot",
     layout="wide",
 )
+
+# Copy Streamlit secrets into environment variables
+# so that HistoryBot and LangChain/Azure clients can read them via os.getenv()
+SECRET_KEYS = [
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_OPENAI_API_KEY",
+    "OPENAI_API_VERSION",
+    "MODEL_AZURE_DEPLOYMENT",
+    "MODEL_AZURE_CODE_DEPLOYMENT",
+    "MODEL_AZURE_CODE_DEPLOYMENT_NAME",
+    "EMBED_AZURE_DEPLOYMENT",
+    "AZURE_AI_SEARCH_SERVICE_NAME",
+    "AZURE_AI_SEARCH_INDEX_NAME",
+    "AZURE_AI_SEARCH_API_KEY",
+]
+
+for key in SECRET_KEYS:
+    if key in st.secrets:
+        os.environ[key] = str(st.secrets[key])
+
+from witt_histochat_jupyter import HistoryBot
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_JSON_PATH = str(BASE_DIR / "assets-json" / "DF-wittgenstein-nonNAComma_FULL.json")
@@ -34,7 +51,6 @@ DEFAULT_TEMPLATE = (
 )
 
 ACCENT_RED = "#ff4b4b"
-
 
 @st.cache_resource
 def get_bot(
