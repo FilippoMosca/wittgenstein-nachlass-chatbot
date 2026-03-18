@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide",
 )
 
-BASE_DIR = Path("/Users/filippomosca/Downloads/witt-histochat-main")
+BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_JSON_PATH = str(BASE_DIR / "assets-json" / "DF-wittgenstein-nonNAComma_FULL.json")
 WITTGENSTEIN_IMG_PATH = BASE_DIR / "other" / "wittgenstein_pic.png"
 
