@@ -1,56 +1,3 @@
-"""
-witt_histochat_jupyter.py
-
-Jupyter-friendly (and CLI-friendly) version of the Histochat pipeline.
-
-ASSUMPTIONS (current setup you verified):
-- Azure Search index: json-oaisearch-wittgenstein-nonna-comma-full
-- In THIS index, field 'siglum' is UNDERSCORE-style.
-- Your local DF is UNDERSCORE-style too (FULL dataset).
-=> No underscore<->comma conversion is needed when building Azure filters,
-   but we DO normalize user-provided comma-style sigla to underscore-style
-   to ensure DF validation works (e.g., Ms-101,IIr[1] -> Ms-101_IIr[1]).
-
-Hard guarantees (enforced):
-1) If user provides refs (remark-level or doc-level), refs are metadata-only:
-   - listrefs are enforced deterministically from preprocess/DF validation (LLM1 cannot drift)
-   - refs are used ONLY for prefilter (candidate pool)
-   - refs are ALWAYS stripped from the embedder query (retrieval_query)
-2) If user provides dates, dates are metadata-only:
-   - dates are used ONLY for prefilter
-   - dates/years are ALWAYS stripped from the embedder query
-3) If there are NO metadata (no refs and no dates), semantic invariance holds:
-   - retrieval_query == cleaned original query (no LLM paraphrase)
-4) LAST-MILE SAFETY NET:
-   - Even if something upstream fails, we apply a final deterministic strip of any Ms-/Ts- tokens
-     on the text that will be embedded.
-
-Pipeline:
-  1) preprocess refs (accepts comma- and underscore-style)
-  2) validate refs against DF (remark-level + doc-level prefixes)
-  3) LLM1 extracts listdates + modified_user_query (refs are enforced if present)
-  4) guardrails:
-      - patch listdates from years if needed
-      - strip refs/dates from semantic query (deterministic)
-      - NO-METADATA invariance for content-only queries
-      - LAST-MILE siglum stripping on the embedder query
-  5) pandas filtering -> Azure OData filter_expression (search.in(siglum, ...)) or date-only native filter
-  6) conflict detection for contradictory refs+dates (early exit)
-  7) Azure Search retrieval (hybrid)
-  8) LLM2 answer + sources (structured)
-
-NEW (minimal, compatible changes):
-- If the user query is REF-ONLY (just a Nachlass identifier), route the LLM2 "question" deterministically:
-    * remark-level id (exact siglum) -> explain that remark's content
-    * doc-level id (prefix like Ms-114) -> brief doc identification + thematic overview from retrieved remarks
-- Doc-level k-boost: boost k (default >= 25) ONLY for doc-level OVERVIEW intents:
-    * ref-only doc ids (e.g. "Ms-114")
-    * overview questions like "What does Wittgenstein say in Ms-114?", "main topics", "overview", "summarize"
-  Do NOT boost for topic-focused questions like "about objects", "about grammar", etc.
-- Language control for LLM2:
-    * If REF-ONLY -> always answer in ENGLISH.
-    * Otherwise -> answer in the language of the user query (EN/DE/IT heuristic).
-"""
 
 from __future__ import annotations
 
@@ -215,10 +162,12 @@ class HistoryBot:
 
         # --- Load DF ---
         self.json_searchindex_file_path = json_searchindex_file_path
-        self.DF_wittgenstein = self._load_df(json_searchindex_file_path)
+        if json_searchindex_file_path and os.path.exists(json_searchindex_file_path):
+           self.DF_wittgenstein = self._load_df(json_searchindex_file_path)
+        else:
+           self.DF_wittgenstein = pd.DataFrame(columns=["siglum", "datefrom", "dateto", "refcontent"])
+           
         self.known_sigla = set(self.DF_wittgenstein["siglum"].astype(str).tolist())
-
-        # Document-level prefixes (e.g., "Ms-114", "Ts-213", "Ts-201a1")
         self.known_siglum_prefixes = set(str(s).split("_", 1)[0] for s in self.known_sigla)
 
         # --- Models/embeddings ---
