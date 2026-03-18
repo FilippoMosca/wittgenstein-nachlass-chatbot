@@ -1,8 +1,11 @@
 
 from __future__ import annotations
 
-from dotenv import load_dotenv
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ModuleNotFoundError:
+    pass
 
 import os
 import re
