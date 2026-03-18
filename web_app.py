@@ -33,9 +33,32 @@ SECRET_KEYS = [
     "AZURE_AI_SEARCH_API_KEY",
 ]
 
+try:
+    secrets_dict = dict(st.secrets)
+except Exception:
+    secrets_dict = {}
+
 for key in SECRET_KEYS:
-    if key in st.secrets:
-        os.environ[key] = str(st.secrets[key])
+    if key in secrets_dict:
+        os.environ[key] = str(secrets_dict[key])
+
+required_env = [
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_OPENAI_API_KEY",
+    "OPENAI_API_VERSION",
+    "MODEL_AZURE_DEPLOYMENT",
+    "MODEL_AZURE_CODE_DEPLOYMENT",
+    "MODEL_AZURE_CODE_DEPLOYMENT_NAME",
+    "EMBED_AZURE_DEPLOYMENT",
+    "AZURE_AI_SEARCH_SERVICE_NAME",
+    "AZURE_AI_SEARCH_INDEX_NAME",
+    "AZURE_AI_SEARCH_API_KEY",
+]
+
+missing = [k for k in required_env if not os.getenv(k)]
+if missing:
+    st.error("Missing Streamlit secrets: " + ", ".join(missing))
+    st.stop()
 
 from witt_histochat_jupyter import HistoryBot
 
