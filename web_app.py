@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 import base64
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Set
 
 import streamlit as st
+from azure.storage.blob import BlobServiceClient
 
 try:
     from dotenv import load_dotenv
@@ -95,7 +97,6 @@ if missing:
 from witt_histochat_jupyter import HistoryBot
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_JSON_PATH = str(BASE_DIR / "assets-json" / "DF-wittgenstein-nonNAComma_FULL.json")
 WITTGENSTEIN_IMG_PATH = BASE_DIR / "other" / "wittgenstein_pic.png"
 
 DEFAULT_TEMPLATE = (
@@ -106,6 +107,38 @@ DEFAULT_TEMPLATE = (
 )
 
 ACCENT_RED = "#ff4b4b"
+
+
+@st.cache_resource
+def get_private_json_path() -> str:
+    connection_string = st.secrets["AZURE_STORAGE_CONNECTION_STRING"]
+    container_name = st.secrets["AZURE_STORAGE_CONTAINER"]
+    blob_name = st.secrets["AZURE_STORAGE_BLOB"]
+
+    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+
+    temp_dir = Path(tempfile.gettempdir())
+    local_path = temp_dir / blob_name
+
+    if not local_path.exists():
+        with open(local_path, "wb") as f:
+            download_stream = blob_client.download_blob()
+            f.write(download_stream.readall())
+
+    return str(local_path)
+
+
+try:
+    DEFAULT_JSON_PATH = get_private_json_path()
+except Exception as e:
+    st.error(f"Failed to download metadata JSON from Azure Blob: {e}")
+    st.stop()
+
+if not os.path.exists(DEFAULT_JSON_PATH):
+    st.error(f"Metadata JSON not found: {DEFAULT_JSON_PATH}")
+    st.stop()
+
 
 @st.cache_resource
 def get_bot(
@@ -186,6 +219,9 @@ def render_sources_text(out: Dict[str, Any]) -> None:
 def render_debug_panel(out: Dict[str, Any], bot: HistoryBot) -> None:
     with st.expander("Debug info", expanded=True):
         st.write("Index:", os.getenv("AZURE_AI_SEARCH_INDEX_NAME"))
+        st.write("Metadata JSON path:", DEFAULT_JSON_PATH)
+        st.write("Metadata JSON exists:", os.path.exists(DEFAULT_JSON_PATH))
+        st.write("DF rows:", len(getattr(bot, "DF_wittgenstein", [])))
         st.write("Valid refs:", out.get("valid_refs_df"))
         st.write("Invalid refs:", out.get("invalid_refs_df"))
         st.write("Document-level refs:", out.get("document_level_refs"))
