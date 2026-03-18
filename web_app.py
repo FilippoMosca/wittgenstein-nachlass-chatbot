@@ -216,14 +216,6 @@ st.markdown(
             display: none !important;
         }}
 
-        header[data-testid="stHeader"] {{
-            display: none !important;
-        }}
-
-        div[data-testid="stToolbar"] {{
-            display: none !important;
-        }}
-
         .block-container {{
             padding-top: 1.2rem;
             padding-bottom: 2rem;
