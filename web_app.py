@@ -149,7 +149,7 @@ def get_used_sigla(sources: Any) -> Set[str]:
     return {s for s in sigla_used if s}
 
 
-def render_sources_text(out: Dict[str, Any], *, max_chars: int = 1200) -> None:
+def render_sources_text(out: Dict[str, Any]) -> None:
     docs = out.get("docs", []) or []
     sources = out.get("sources", [])
     sigla_used = get_used_sigla(sources)
@@ -173,9 +173,6 @@ def render_sources_text(out: Dict[str, Any], *, max_chars: int = 1200) -> None:
         datefrom = doc.metadata.get("datefrom", "")
         dateto = doc.metadata.get("dateto", "")
         text = (doc.page_content or "").replace("\n", " ").strip()
-
-        if len(text) > max_chars:
-            text = text[:max_chars] + "…"
 
         with st.container(border=True):
             st.markdown(f"### `{sig}`")
@@ -378,7 +375,7 @@ if st.session_state.last_out is not None:
     st.code(str(out.get("sources", [])))
 
     with st.expander("Sources – text", expanded=True):
-        render_sources_text(out, max_chars=1200)
+        render_sources_text(out)
 
     if show_debug:
         render_debug_panel(out, bot)
