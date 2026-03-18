@@ -16,6 +16,7 @@ except ModuleNotFoundError:
 st.set_page_config(
     page_title="Wittgenstein Nachlass Chatbot",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 # --- PASSWORD PROTECTION ---
@@ -236,10 +237,6 @@ st.markdown(
             font-size: 1.3rem;
             font-weight: 700;
             padding: 0;
-        }}
-
-        div[data-testid="stSidebar"] {{
-            min-width: 300px;
         }}
 
         .witt-header-wrap {{
