@@ -185,21 +185,29 @@ def get_used_sigla(sources: Any) -> Set[str]:
 def render_sources_text(out: Dict[str, Any]) -> None:
     docs = out.get("docs", []) or []
     sources = out.get("sources", [])
-    sigla_used = get_used_sigla(sources)
+
+    exact_sigla = set()
+    rejected_sigla = set()
 
     if not docs:
         st.warning("No documents were retrieved.")
         return
 
-    if not sigla_used:
-        st.info("No sources declared by LLM2.")
+    if not sources or sources == ["No source"]:
+        st.info("No exact sources declared by LLM2.")
         return
+
+    if isinstance(sources, dict):
+        exact_sigla.update(sources.get("exact_siglum", []))
+        rejected_sigla.update(sources.get("rejected_siglum", []))
+    elif isinstance(sources, list):
+        exact_sigla.update(sources)
 
     shown = 0
 
     for doc in docs:
         sig = doc.metadata.get("siglum", "")
-        if sig not in sigla_used:
+        if sig not in exact_sigla:
             continue
 
         shown += 1
@@ -213,7 +221,11 @@ def render_sources_text(out: Dict[str, Any]) -> None:
             st.markdown(f"> {text}")
 
     if shown == 0:
-        st.info("No declared sources were found among the retrieved documents.")
+        st.info("No exact declared sources were found among the retrieved documents.")
+
+    if rejected_sigla:
+        with st.expander("Rejected source identifiers returned by the model"):
+            st.code(str(sorted(rejected_sigla)))
 
 
 def render_debug_panel(out: Dict[str, Any], bot: HistoryBot) -> None:
