@@ -289,15 +289,26 @@ Must return a JSON object having:
         )
 
     def _build_final_prompt(self) -> PromptTemplate:
-        prompt_template = """ You are a helpful assistant.
-{user_template_text} \n
-User question: {question} \n
-The context consists of three fields: 'source', 'period', and 'context'.
-Include the relevant 'source' values used to answer the question in your response.
+    prompt_template = """You are a helpful assistant.
 
-Context: {context}
+{user_template_text}
+
+User question: {question}
+
+The context consists of three fields: 'source', 'period', and 'context'.
+
+Important rules for the 'sources' field:
+- Return only source identifiers copied EXACTLY from the 'source' field in the provided context.
+- Do not shorten, normalize, paraphrase, simplify, or merge any source identifier.
+- Do not omit brackets, page markers, remark markers, or suffixes.
+- Do not return document-level identifiers if the context only contains remark-level identifiers.
+- If you are not sure of an exact source identifier, do not include it.
+- Every item in 'sources' must be an exact string that appears in the provided context.
+
+Context:
+{context}
 """
-        return PromptTemplate.from_template(prompt_template)
+    return PromptTemplate.from_template(prompt_template)
 
     # -----------------------------
     # Data / filtering
@@ -1062,16 +1073,29 @@ Context: {context}
         if (not meta_source) or all(x == "" for x in meta_source):
             meta_source_disp: Any = ["No source"]
         else:
-            kval_partial: List[str] = []
             kval_exact: List[str] = []
+            kval_rejected: List[str] = []
+
             for kval in meta_source:
                 if kval != "":
                     if kval in docs_siglumList:
                         kval_exact.append(kval)
                     else:
-                        kval_partial.append(kval)
-            meta_source_disp = {"exact_siglum": kval_exact, "partial_siglum": kval_partial}
+                        kval_rejected.append(kval)
 
+            # remove duplicates while preserving order
+            kval_exact = list(dict.fromkeys(kval_exact))
+            kval_rejected = list(dict.fromkeys(kval_rejected))
+
+            if kval_exact:
+                meta_source_disp = {
+                    "exact_siglum": kval_exact,
+                    "rejected_siglum": kval_rejected,
+                }
+            else:
+                meta_source_disp = ["No source"]
+
+        
         return {
             "session_id": session_id,
             "input_question": question,
