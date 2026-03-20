@@ -382,8 +382,7 @@ question = st.text_area(
     key="question_input",
 )
 
-ask_clicked = st.button("Run query")
-
+ask_clicked = st.button("➜", help="Run query")
 
 if ask_clicked:
     if not question.strip():
