@@ -358,21 +358,13 @@ with st.sidebar:
         step=10,
     )
 
-    temperature = st.slider(
-        "Temperature",
-        min_value=0.0,
-        max_value=1.0,
-        value=0.6,
-        step=0.01,
-    )
-
     show_debug = st.checkbox("Show debug panel", value=False)
 
 
 try:
     bot = get_bot(
         json_searchindex_file_path=DEFAULT_JSON_PATH,
-        default_temperature=temperature,
+        default_temperature=0.6,
         default_k_num=k_num,
         retrieval_min_query_chars=6,
         debug=False,
@@ -390,7 +382,7 @@ question = st.text_area(
     key="question_input",
 )
 
-ask_clicked = st.button("➜")
+ask_clicked = st.button("Run query")
 
 
 if ask_clicked:
@@ -403,7 +395,6 @@ if ask_clicked:
                     question,
                     user_template_text=DEFAULT_TEMPLATE,
                     k=k_num,
-                    temperature=temperature,
                 )
                 st.session_state.last_out = out
                 st.session_state.last_question = question
