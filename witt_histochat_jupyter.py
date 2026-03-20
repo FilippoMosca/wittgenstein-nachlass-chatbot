@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 try:
@@ -169,10 +168,10 @@ class HistoryBot:
         # --- Load DF ---
         self.json_searchindex_file_path = json_searchindex_file_path
         if json_searchindex_file_path and os.path.exists(json_searchindex_file_path):
-           self.DF_wittgenstein = self._load_df(json_searchindex_file_path)
+            self.DF_wittgenstein = self._load_df(json_searchindex_file_path)
         else:
-           self.DF_wittgenstein = pd.DataFrame(columns=["siglum", "datefrom", "dateto", "refcontent"])
-           
+            self.DF_wittgenstein = pd.DataFrame(columns=["siglum", "datefrom", "dateto", "refcontent"])
+
         self.known_sigla = set(self.DF_wittgenstein["siglum"].astype(str).tolist())
         self.known_siglum_prefixes = set(str(s).split("_", 1)[0] for s in self.known_sigla)
 
@@ -289,7 +288,7 @@ Must return a JSON object having:
         )
 
     def _build_final_prompt(self) -> PromptTemplate:
-    prompt_template = """You are a helpful assistant.
+        prompt_template = """You are a helpful assistant.
 
 {user_template_text}
 
@@ -308,7 +307,7 @@ Important rules for the 'sources' field:
 Context:
 {context}
 """
-    return PromptTemplate.from_template(prompt_template)
+        return PromptTemplate.from_template(prompt_template)
 
     # -----------------------------
     # Data / filtering
@@ -1095,7 +1094,6 @@ Context:
             else:
                 meta_source_disp = ["No source"]
 
-        
         return {
             "session_id": session_id,
             "input_question": question,
