@@ -712,17 +712,18 @@ Context:
     # NEW: language control for LLM2 (EN/DE/IT heuristic)
     # -----------------------------
 
-    @staticmethod
+@staticmethod
     def _detect_user_language(q: str) -> str:
         """
-        Heuristic language detection for user query: EN / DE / IT.
+        Heuristic language detection for user query: EN / DE / IT / NO.
 
         Priority:
         1) Strong German chars (äöüß) => DE
-        2) Stopword vote (EN/DE/IT)
-        3) ASCII ratio fallback => EN
+        2) Strong Norwegian chars (æøå) => NO
+        3) Stopword vote (EN/DE/IT/NO)
+        4) ASCII ratio fallback => EN
 
-        Returns: "EN", "DE", or "IT"
+        Returns: "EN", "DE", "IT", or "NO"
         """
         s = (q or "").strip()
         if not s:
@@ -734,7 +735,11 @@ Context:
         if re.search(r"[äöüß]", s_lower):
             return "DE"
 
-        # 2) Stopword vote (small, robust sets)
+        # 2) Strong Norwegian characters (æ, ø, å)
+        if re.search(r"[æøå]", s_lower):
+            return "NO"
+
+        # 3) Stopword vote (small, robust sets)
         tokens = re.findall(r"[a-zA-ZÀ-ÖØ-öø-ÿ]+", s_lower)
 
         en_sw = {
@@ -749,12 +754,18 @@ Context:
             "il","lo","la","i","gli","le","e","o","ma","se","allora","che","cosa","perché","come","dove","quando",
             "dice","significa","su","in","di","a","con","tra","spiega","confronta","tema","temi","principale"
         }
+        no_sw = {
+            "og","eller","men","hvis","da","hva","hvorfor","hvordan","hvor","når","sier","betyr","om","i","på",
+            "av","til","med","mellom","forklar","sammenlign","tema","temaer","hoved","det","den","de","er","ikke",
+            "dette","disse","hvilke","kan","har","være","som"
+        }
 
         en_score = sum(1 for t in tokens if t in en_sw)
         de_score = sum(1 for t in tokens if t in de_sw)
         it_score = sum(1 for t in tokens if t in it_sw)
+        no_score = sum(1 for t in tokens if t in no_sw)
 
-        scores = {"EN": en_score, "DE": de_score, "IT": it_score}
+        scores = {"EN": en_score, "DE": de_score, "IT": it_score, "NO": no_score}
         best_lang = max(scores, key=scores.get)
         best_val = scores[best_lang]
         second_val = sorted(scores.values(), reverse=True)[1]
@@ -762,7 +773,7 @@ Context:
         if best_val >= 2 and best_val >= second_val + 1:
             return best_lang
 
-        # 3) ASCII ratio fallback
+        # 4) ASCII ratio fallback
         ascii_ratio = sum(1 for ch in s if ord(ch) < 128) / max(len(s), 1)
         if ascii_ratio >= 0.95:
             return "EN"
@@ -775,7 +786,10 @@ Context:
             return "Answer in German."
         if lang_code == "IT":
             return "Answer in Italian."
+        if lang_code == "NO":
+            return "Answer in Norwegian."
         return "Answer in English."
+
 
     # -----------------------------
     # Conflict detection
