@@ -712,7 +712,11 @@ Context:
     # NEW: language control for LLM2 (EN/DE/IT heuristic)
     # -----------------------------
 
-@staticmethod
+    # -----------------------------
+    # NEW: language control for LLM2 (EN/DE/IT heuristic)
+    # -----------------------------
+
+    @staticmethod
     def _detect_user_language(q: str) -> str:
         """
         Heuristic language detection for user query: EN / DE / IT / NO.
@@ -789,7 +793,6 @@ Context:
         if lang_code == "NO":
             return "Answer in Norwegian."
         return "Answer in English."
-
 
     # -----------------------------
     # Conflict detection
