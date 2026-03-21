@@ -903,6 +903,77 @@ Context:
         valid_refs_siglum, invalid_refs_siglum = self._extract_and_validate_refs(referenceList)
         self.last_valid_refs = valid_refs_siglum
         self.last_invalid_refs = invalid_refs_siglum
+        
+        # --- HARD STOP: all refs invalid ---
+        if referenceList and not valid_refs_siglum:
+            self.last_document_level_refs = []
+            invalid_disp = ", ".join(invalid_refs_siglum) if invalid_refs_siglum else "the provided reference(s)"
+
+            return {
+                "session_id": session_id,
+                "input_question": question,
+                "processed_question": processed_q,
+                "referenceList_raw": referenceList,
+                "valid_refs_df": valid_refs_siglum,
+                "invalid_refs_df": invalid_refs_siglum,
+                "document_level_refs": [],
+                "referenceList_for_llm1": [],
+                "filter_json": {},
+                "llm1_drift_refs": [],
+                "date_normalization_mode": "none",
+                "filter_expression": None,
+                "retrieval_query": "",
+                "retrieval_query_fallback_used": False,
+                "k": k,
+                "docs": [],
+                "docs_siglum": [],
+                "answer": f"I could not find the reference(s): {invalid_disp}. Please check the identifier.",
+                "sources_raw": [],
+                "sources": ["No source"],
+                "metadata_conflict": False,
+                "metadata_conflict_message": "",
+                "metadata_conflict_details": {},
+            }
+
+        # --- SOFT STOP: mixed valid + invalid refs ---
+        if valid_refs_siglum and invalid_refs_siglum:
+            self.last_document_level_refs = [
+                r for r in valid_refs_siglum
+                if r in self.known_siglum_prefixes and r not in self.known_sigla
+            ]
+
+            valid_disp = ", ".join(valid_refs_siglum)
+            invalid_disp = ", ".join(invalid_refs_siglum)
+
+            return {
+                "session_id": session_id,
+                "input_question": question,
+                "processed_question": processed_q,
+                "referenceList_raw": referenceList,
+                "valid_refs_df": valid_refs_siglum,
+                "invalid_refs_df": invalid_refs_siglum,
+                "document_level_refs": self.last_document_level_refs,
+                "referenceList_for_llm1": [re.escape(s) for s in valid_refs_siglum],
+                "filter_json": {},
+                "llm1_drift_refs": [],
+                "date_normalization_mode": "none",
+                "filter_expression": None,
+                "retrieval_query": "",
+                "retrieval_query_fallback_used": False,
+                "k": k,
+                "docs": [],
+                "docs_siglum": [],
+                "answer": (
+                    f"I found the following valid reference(s): {valid_disp}. "
+                    f"But I could not find: {invalid_disp}. "
+                    f"Please correct the invalid reference(s) if you want a reliable comparison or joint answer."
+                ),
+                "sources_raw": [],
+                "sources": ["No source"],
+                "metadata_conflict": False,
+                "metadata_conflict_message": "",
+                "metadata_conflict_details": {},
+            }
 
         document_level_refs = [
             r for r in valid_refs_siglum
