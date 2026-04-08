@@ -16,7 +16,7 @@ except ModuleNotFoundError:
     pass
 
 st.set_page_config(
-    page_title="Wittgenstein Nachlass Chatbot",
+    page_title="Wittgenstein Chatbot",
     layout="wide",
     initial_sidebar_state="expanded",
 )
