@@ -338,7 +338,7 @@ with header_col2:
         """
         <div class="witt-title-box">
             <div class="witt-header-wrap">
-                <h1 style="margin-bottom: 0.2rem;">Wittgenstein Nachlass Chatbot</h1>
+                <h1 style="margin-bottom: 0.2rem;">Wittgenstein Chatbot</h1>
                 <div class="witt-subtitle">A RAG-based Q&A interface for exploring Wittgenstein through his philosophical Nachlass.</div>
             </div>
         </div>
