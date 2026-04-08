@@ -33,7 +33,7 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
-    st.title("Wittgenstein Nachlass Chatbot")
+    st.title("Wittgenstein Chatbot")
     st.write("Access restricted. Please enter the password.")
 
     st.text_input(
