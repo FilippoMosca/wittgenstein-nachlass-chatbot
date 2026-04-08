@@ -4,6 +4,6 @@ A RAG-based web application for exploring Ludwig Wittgenstein’s philosophical 
 
 ## Features
 - Retrieval-Augmented Generation (RAG) over Wittgenstein's texts
-- Multi-language support (German, English, Italian)
+- Multi-language support (German, English, Italian, Norwegian)
 - Source-grounded answers with references
 - Streamlit web interface
