@@ -234,14 +234,14 @@ st.markdown(
             visibility: hidden;
         }}
 
-        .top-credit {{
+        .bottom-credit {{
             width: 100%;
             text-align: center;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             opacity: 0.75;
             letter-spacing: 0.4px;
-            margin-top: -1.5rem;
-            margin-bottom: 1.4rem;
+            margin-top: 2.6rem;
+            margin-bottom: 1rem;
         }}
 
         .block-container {{
