@@ -381,6 +381,16 @@ if question and question != st.session_state.last_question:
         except Exception as e:
             st.error(f"Error while running the chatbot: {e}")
             st.stop()
+
+if st.session_state.last_out is None:
+    st.markdown(
+        """
+        <div class="bottom-credit">
+            Created by WAB, Filippo Mosca and UiB IT
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
             
 if st.session_state.last_out is not None:
     out = st.session_state.last_out
@@ -397,13 +407,3 @@ if st.session_state.last_out is not None:
 
     if show_debug:
         render_debug_panel(out, bot)
-
-
-st.markdown(
-    """
-    <div class="custom-footer">
-        Created by WAB, Filippo Mosca and UiB IT
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
