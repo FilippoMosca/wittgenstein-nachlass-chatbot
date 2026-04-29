@@ -236,7 +236,7 @@ st.markdown(
 
         .custom-footer {{
             position: fixed;
-            right: 7.5rem;
+            right: 12rem;
             bottom: 1.35rem;
             font-size: 0.85rem;
             opacity: 0.75;
