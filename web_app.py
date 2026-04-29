@@ -361,34 +361,27 @@ except Exception as e:
     st.stop()
 
 
-question = st.text_area(
+question = st.text_input(
     "Question",
     placeholder="Ask your query on Wittgenstein Nachlass",
-    height=120,
     label_visibility="collapsed",
     key="question_input",
 )
 
-ask_clicked = st.button("➜", help="Run query")
-
-if ask_clicked:
-    if not question.strip():
-        st.warning("Please enter a question.")
-    else:
-        with st.spinner("Running retrieval and answer generation..."):
-            try:
-                out = bot.ask(
-                    question,
-                    user_template_text=DEFAULT_TEMPLATE,
-                    k=k_num,
-                )
-                st.session_state.last_out = out
-                st.session_state.last_question = question
-            except Exception as e:
-                st.error(f"Error while running the chatbot: {e}")
-                st.stop()
-
-
+if question and question != st.session_state.last_question:
+    with st.spinner("Running retrieval and answer generation..."):
+        try:
+            out = bot.ask(
+                question,
+                user_template_text=DEFAULT_TEMPLATE,
+                k=k_num,
+            )
+            st.session_state.last_out = out
+            st.session_state.last_question = question
+        except Exception as e:
+            st.error(f"Error while running the chatbot: {e}")
+            st.stop()
+            
 if st.session_state.last_out is not None:
     out = st.session_state.last_out
 
