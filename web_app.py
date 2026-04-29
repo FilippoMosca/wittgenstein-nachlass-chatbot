@@ -21,37 +21,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- PASSWORD PROTECTION ---
-def check_password():
-    def password_entered():
-        if st.session_state.get("password", "") == st.secrets["APP_PASSWORD"]:
-            st.session_state["password_correct"] = True
-            st.session_state.pop("password", None)
-        else:
-            st.session_state["password_correct"] = False
-
-    if st.session_state.get("password_correct", False):
-        return True
-
-    st.title("Wittgenstein Chatbot")
-    st.write("Access restricted. Please enter the password.")
-
-    st.text_input(
-        "Password",
-        type="password",
-        on_change=password_entered,
-        key="password",
-    )
-
-    if "password_correct" in st.session_state and not st.session_state["password_correct"]:
-        st.error("Incorrect password")
-
-    return False
-
-
-if not check_password():
-    st.stop()
-
 # Copy Streamlit secrets into environment variables
 # so that HistoryBot and LangChain/Azure clients can read them via os.getenv()
 SECRET_KEYS = [
