@@ -236,11 +236,12 @@ st.markdown(
 
         .custom-footer {{
             position: fixed;
-            right: 1.5rem;
-            bottom: 0.75rem;
+            right: 7.5rem;
+            bottom: 1.35rem;
             font-size: 0.85rem;
             opacity: 0.75;
             z-index: 999;
+            white-space: nowrap;
         }}
 
         .block-container {{
