@@ -235,14 +235,11 @@ st.markdown(
         }}
 
         .custom-footer {{
-            position: fixed;
-            left: 50%;
-            bottom: 1.5rem;
-            transform: translateX(-50%);
-            font-size: 0.85rem;
-            opacity: 0.75;
-            z-index: 999;
-            white-space: nowrap;
+            text-align: center;
+            font-size: 0.8rem;
+            opacity: 0.6;
+            margin-top: 0.5rem;
+            margin-bottom: 1.5rem;
         }}
 
         .block-container {{
