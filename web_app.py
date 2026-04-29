@@ -236,12 +236,13 @@ st.markdown(
 
         .bottom-credit {{
             width: 100%;
-            text-align: center;
-            font-size: 0.75rem;
-            opacity: 0.75;
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.85rem;
+            opacity: 0.6;
             letter-spacing: 0.4px;
-            margin-top: 2.6rem;
-            margin-bottom: 1rem;
+            z-index: 999;
         }}
 
         .block-container {{
