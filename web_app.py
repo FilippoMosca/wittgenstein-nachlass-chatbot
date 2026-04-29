@@ -235,11 +235,13 @@ st.markdown(
         }}
 
         .custom-footer {{
+            width: 100%;
             text-align: center;
-            font-size: 0.8rem;
-            opacity: 0.6;
-            margin-top: 0.5rem;
-            margin-bottom: 1.5rem;
+            font-size: 0.75rem;
+            opacity: 0.5;
+            letter-spacing: 0.4px;
+            padding-top: 0.4rem;
+            padding-bottom: 0.6rem;
         }}
 
         .block-container {{
