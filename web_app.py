@@ -235,13 +235,14 @@ st.markdown(
         }}
 
         .bottom-credit {{
-            width: 100%;
             position: fixed;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             font-size: 0.85rem;
             opacity: 0.6;
             letter-spacing: 0.4px;
+            text-align: center;
             z-index: 999;
         }}
 
