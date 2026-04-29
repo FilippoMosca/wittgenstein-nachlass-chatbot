@@ -230,6 +230,19 @@ st.markdown(
             display: none !important;
         }}
 
+        footer {{
+            visibility: hidden;
+        }}
+
+        .custom-footer {{
+            position: fixed;
+            right: 1.5rem;
+            bottom: 0.75rem;
+            font-size: 0.85rem;
+            opacity: 0.75;
+            z-index: 999;
+        }}
+
         .block-container {{
             padding-top: 3.5rem;
             padding-bottom: 2rem;
@@ -390,3 +403,13 @@ if st.session_state.last_out is not None:
 
     if show_debug:
         render_debug_panel(out, bot)
+
+
+st.markdown(
+    """
+    <div class="custom-footer">
+        Created by WAB, Filippo Mosca and UiB IT
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
