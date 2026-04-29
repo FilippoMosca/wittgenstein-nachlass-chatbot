@@ -236,8 +236,9 @@ st.markdown(
 
         .custom-footer {{
             position: fixed;
-            right: 12rem;
-            bottom: 1.35rem;
+            left: 50%;
+            bottom: 1.5rem;
+            transform: translateX(-50%);
             font-size: 0.85rem;
             opacity: 0.75;
             z-index: 999;
