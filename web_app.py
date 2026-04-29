@@ -21,6 +21,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Copy Streamlit secrets into environment variables
+# so that HistoryBot and LangChain/Azure clients can read them via os.getenv()
 SECRET_KEYS = [
     "AZURE_OPENAI_ENDPOINT",
     "AZURE_OPENAI_API_KEY",
@@ -43,7 +45,18 @@ for key in SECRET_KEYS:
     if key in secrets_dict:
         os.environ[key] = str(secrets_dict[key])
 
-required_env = SECRET_KEYS
+required_env = [
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_OPENAI_API_KEY",
+    "OPENAI_API_VERSION",
+    "MODEL_AZURE_DEPLOYMENT",
+    "MODEL_AZURE_CODE_DEPLOYMENT",
+    "MODEL_AZURE_CODE_DEPLOYMENT_NAME",
+    "EMBED_AZURE_DEPLOYMENT",
+    "AZURE_AI_SEARCH_SERVICE_NAME",
+    "AZURE_AI_SEARCH_INDEX_NAME",
+    "AZURE_AI_SEARCH_API_KEY",
+]
 
 missing = [k for k in required_env if not os.getenv(k)]
 if missing:
@@ -221,14 +234,14 @@ st.markdown(
             visibility: hidden;
         }}
 
-        .top-banner {{
+        .custom-footer {{
             width: 100%;
             text-align: center;
-            font-size: 0.78rem;
-            opacity: 0.55;
-            letter-spacing: 0.3px;
-            margin-top: -2.4rem;
-            margin-bottom: 2.2rem;
+            font-size: 0.75rem;
+            opacity: 0.5;
+            letter-spacing: 0.4px;
+            padding-top: 0.4rem;
+            padding-bottom: 0.6rem;
         }}
 
         .block-container {{
@@ -284,16 +297,6 @@ st.markdown(
             min-height: 96px;
         }}
     </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-st.markdown(
-    """
-    <div class="top-banner">
-        Created by WAB, Filippo Mosca and UiB IT
-    </div>
     """,
     unsafe_allow_html=True,
 )
@@ -401,3 +404,13 @@ if st.session_state.last_out is not None:
 
     if show_debug:
         render_debug_panel(out, bot)
+
+
+st.markdown(
+    """
+    <div class="custom-footer">
+        Created by WAB, Filippo Mosca and UiB IT
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
