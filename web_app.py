@@ -234,14 +234,14 @@ st.markdown(
             visibility: hidden;
         }}
 
-        .custom-footer {{
+        .top-credit {{
             width: 100%;
             text-align: center;
-            font-size: 0.75rem;
-            opacity: 0.5;
+            font-size: 0.85rem;
+            opacity: 0.75;
             letter-spacing: 0.4px;
-            padding-top: 0.4rem;
-            padding-bottom: 0.6rem;
+            margin-top: -1.5rem;
+            margin-bottom: 1.4rem;
         }}
 
         .block-container {{
