@@ -98,15 +98,7 @@ def get_private_json_path() -> str:
     return str(local_path)
 
 
-try:
-    DEFAULT_JSON_PATH = get_private_json_path()
-except Exception as e:
-    st.error(f"Failed to download metadata JSON from Azure Blob: {e}")
-    st.stop()
-
-if not os.path.exists(DEFAULT_JSON_PATH):
-    st.error(f"Metadata JSON not found: {DEFAULT_JSON_PATH}")
-    st.stop()
+DEFAULT_JSON_PATH = "assets-json/DF-wittgenstein_dates_fixed.json"
 
 
 @st.cache_resource
