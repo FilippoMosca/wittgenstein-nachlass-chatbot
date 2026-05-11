@@ -313,27 +313,20 @@ with header_col1:
 with header_col2:
     st.markdown(
         """
-        <div class="witt-title-box">
-            <div class="witt-header-wrap">
-
-                <h1 style="margin-bottom: 0.2rem;">
-                    Wittgenstein Chatbot
-                </h1>
-
-                <div class="witt-subtitle">
-                    A RAG-based Q&A interface for exploring Wittgenstein through his philosophical Nachlass.
-                </div>
-
-                <div class="witt-subtitle" style="font-size: 0.9rem; opacity: 0.7;">
-                    NB: Conversation mode is not yet implemented.
-                </div>
-
-                <div class="witt-subtitle" style="font-size: 0.9rem; opacity: 0.7;">
-                    Refer to Nachlass items using the formats Ms-[number] and Ts-[number].
-                </div>
-
-            </div>
+<div class="witt-title-box">
+    <div class="witt-header-wrap">
+        <h1 style="margin-bottom: 0.2rem;">Wittgenstein Chatbot</h1>
+        <div class="witt-subtitle">
+            A RAG-based Q&A interface for exploring Wittgenstein through his philosophical Nachlass.
         </div>
+        <div class="witt-subtitle" style="font-size: 0.9rem; opacity: 0.7;">
+            NB: Conversation mode is not yet implemented.
+        </div>
+        <div class="witt-subtitle" style="font-size: 0.9rem; opacity: 0.7;">
+            Refer to Nachlass items using the formats Ms-[number] and Ts-[number].
+        </div>
+    </div>
+</div>
         """,
         unsafe_allow_html=True,
     )
