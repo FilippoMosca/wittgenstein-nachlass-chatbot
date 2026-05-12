@@ -61,9 +61,7 @@ def _unescape_backslashes(s: str) -> str:
 
 
 def _user_siglum_to_df_siglum(sig: str) -> str:
-    """
-    Normalize user ref to DF-style (underscore).
-    """
+    """Normalize user ref to DF-style underscore siglum."""
     s = str(sig)
     s = re.sub(r",\s+(?=[A-Z0-9\[])", ",", s)
     s = re.sub(r",(?=[A-Za-z0-9])", "_", s)
@@ -71,9 +69,7 @@ def _user_siglum_to_df_siglum(sig: str) -> str:
 
 
 def process_sentence_in_pattern(sentence: str) -> Tuple[str, List[str]]:
-    """
-    Robust extraction of Ms-/Ts- sigla.
-    """
+    """Robust extraction of Ms-/Ts- sigla."""
     sentence = _normalize_ms_ts_variants(sentence)
     sentence = re.sub(r",\s+(?=[A-Z0-9\[])", ",", sentence)
     sentence = re.sub(r"\s*([?.!;:\"(){}])\s*", r" \1 ", sentence)
@@ -233,6 +229,7 @@ class HistoryBot:
         self.last_query_expansion_applied: bool = False
         self.last_query_translation_targets: List[str] = []
         self.last_query_translations: Dict[str, str] = {}
+        self.last_document_type_constraint: Optional[str] = None
 
     # -----------------------------
     # Prompts
@@ -377,6 +374,82 @@ Context:
     # Guard-rails helpers
     # -----------------------------
 
+    @staticmethod
+    def _detect_document_type_constraint(question: str) -> Optional[str]:
+        """
+        Detect whether the user explicitly restricts the query to manuscripts or typescripts.
+
+        Returns:
+        - "Ms-" when the query asks for manuscripts / Ms material only.
+        - "Ts-" when the query asks for typescripts / Ts material only.
+        - None when no unambiguous document-type constraint is present.
+        """
+        q = _normalize_ms_ts_variants(question or "").lower()
+
+        ms_patterns = [
+            r"\bmanuscripts?\b",
+            r"\bms-\b",
+            r"\bms\b",
+            r"\bmanoscritt[oi]\b",
+            r"\bmanoscritti\b",
+            r"\bhandschriften?\b",
+        ]
+
+        ts_patterns = [
+            r"\btypescripts?\b",
+            r"\bts-\b",
+            r"\bts\b",
+            r"\bdattiloscritt[oi]\b",
+            r"\bdattiloscritti\b",
+            r"\btyposkripte?\b",
+            r"\btyposcripts?\b",
+        ]
+
+        wants_ms = any(re.search(p, q, flags=re.IGNORECASE) for p in ms_patterns)
+        wants_ts = any(re.search(p, q, flags=re.IGNORECASE) for p in ts_patterns)
+
+        if wants_ms and not wants_ts:
+            return "Ms-"
+        if wants_ts and not wants_ms:
+            return "Ts-"
+        return None
+
+    def _apply_document_type_constraint(
+        self,
+        *,
+        llm1_out: Dict[str, Any],
+        question: str,
+    ) -> Tuple[Dict[str, Any], Optional[str], Optional[str]]:
+        """
+        Deterministically add a document-type metadata filter when the user asks for
+        manuscripts/typescripts in natural language.
+
+        This prevents a query like "in manuscripts (Ms-) from 1931-1948" from retrieving Ts- rows.
+        """
+        out = dict(llm1_out)
+        doc_type_prefix = self._detect_document_type_constraint(question)
+        self.last_document_type_constraint = doc_type_prefix
+
+        if not doc_type_prefix:
+            return out, None, None
+
+        existing_refs = [_unescape_backslashes(r) for r in (out.get("listrefs") or [])]
+
+        if not existing_refs:
+            out["listrefs"] = [re.escape(doc_type_prefix)]
+            return out, doc_type_prefix, None
+
+        # If the user already gave refs, they must be compatible with the explicit type constraint.
+        incompatible = [r for r in existing_refs if not r.startswith(doc_type_prefix)]
+        if incompatible:
+            return out, doc_type_prefix, (
+                "Your query contains conflicting document-type constraints: "
+                f"you asked for {doc_type_prefix} material, but also provided incompatible reference(s): "
+                f"{', '.join(incompatible)}."
+            )
+
+        return out, doc_type_prefix, None
+
     def _extract_and_validate_refs(self, referenceList_escaped: List[str]) -> Tuple[List[str], List[str]]:
         candidates = [_unescape_backslashes(r) for r in referenceList_escaped]
 
@@ -384,7 +457,9 @@ Context:
         invalid: List[str] = []
 
         for c in candidates:
-            if c in self.known_sigla:
+            if c in {"Ms-", "Ts-"}:
+                valid.append(c)
+            elif c in self.known_sigla:
                 valid.append(c)
             elif c in self.known_siglum_prefixes:
                 valid.append(c)
@@ -560,6 +635,8 @@ Context:
             r"\b(?:Ms-|Ts-)\d{3}[A-Za-z0-9_,\[\]]*(?:et[A-Za-z0-9_,\[\]]+)*\b"
         )
         t = token_pat.sub(" ", t)
+        # Also remove bare document-type tokens introduced by the user.
+        t = re.sub(r"\b(?:Ms-|Ts-)\b", " ", t)
         return self._cleanup_semantic_query(t)
 
     def _strip_years(self, text: str) -> str:
@@ -619,6 +696,7 @@ Context:
             r"\bl\.\s*wittgenstein\b",
             r"\bl\.\s*w\.\b",
             r"\blw\b",
+            r"\bw\b",
             r"\bwittgenstein\b",
             r"\bludwig\b",
         ]
@@ -631,7 +709,6 @@ Context:
         )
 
         boilerplate_patterns = [
-            # English
             rf"\bwhat\s+does\s+(?:ludwig\s+)?wittgenstein\s+(?:say|write|think)\s+about\b",
             rf"\bwhat\s+does\s+(?:he|wittgenstein)\s+(?:say|write|think)\s+about\b",
             rf"\bhow\s+does\s+(?:ludwig\s+)?wittgenstein\s+(?:describe|characterize|define|present|explain|treat|use|uses)\b",
@@ -642,8 +719,6 @@ Context:
             rf"\b(?:give|show|list|find|retrieve)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?{passage_terms}\s+(?:where|in\s+which|that)?\s*(?:wittgenstein\s+)?(?:uses|mentions|discusses|speaks\s+about|writes\s+about)\b",
             rf"\b(?:all\s+)?{passage_terms}\s+(?:where|in\s+which|that|about|on)\b",
             rf"\bthe\s+(?:theme|topic)\s+of\b",
-
-            # Italian
             rf"\b(?:che\s+cosa|cosa)\s+(?:dice|pensa)\s+(?:wittgenstein|ludwig\s+wittgenstein)?\s*(?:di|del|della|dello|dei|degli|delle|su|sul|sulla|sullo|sui|sugli|sulle)\b",
             rf"\bcome\s+(?:wittgenstein|ludwig\s+wittgenstein|egli|lui)?\s*(?:descrive|caratterizza|definisce|presenta|spiega|tratta|usa|utilizza)\b",
             rf"\bin\s+che\s+modo\s+(?:wittgenstein|ludwig\s+wittgenstein|egli|lui)?\s*(?:descrive|caratterizza|definisce|presenta|spiega|tratta|usa|utilizza)\b",
@@ -653,8 +728,6 @@ Context:
             rf"\b(?:tutti\s+i\s+|tutte\s+le\s+)?{passage_terms}\s+(?:in\s+cui|che|su)\b",
             rf"\bil\s+tema\s+(?:di|del|della)\b",
             rf"\ba\s+proposito\s+di\b",
-
-            # German
             rf"\bwas\s+(?:sagt|schreibt|denkt)\s+(?:wittgenstein|er)\s+(?:über|zu)\b",
             rf"\bwie\s+(?:beschreibt|charakterisiert|definiert|stellt|erklärt|behandelt|verwendet|benutzt)\s+(?:wittgenstein|er)\b",
             rf"\bwie\s+(?:wittgenstein|er)\s+(?:beschreibt|charakterisiert|definiert|darstellt|erklärt|behandelt|verwendet|benutzt)\b",
@@ -663,8 +736,6 @@ Context:
             rf"\b(?:gib|zeige|liste|finde|suche)\s+(?:mir\s+)?(?:alle\s+)?(?:{passage_terms}\s+)?(?:in\s+denen|wo)?\s*(?:wittgenstein\s+)?(?:verwendet|benutzt|erwähnt|diskutiert|bespricht)\b",
             rf"\b(?:alle\s+)?{passage_terms}\s+(?:in\s+denen|wo|über|zu)\b",
             rf"\bdas\s+thema\s+(?:von|der|des)\b",
-
-            # Norwegian
             rf"\bhva\s+(?:sier|skriver|tenker)\s+(?:wittgenstein|han)\s+om\b",
             rf"\bhvordan\s+(?:beskriver|karakteriserer|definerer|presenterer|forklarer|behandler|bruker)\s+(?:wittgenstein|han)\b",
             rf"\bhvordan\s+(?:wittgenstein|han)\s+(?:beskriver|karakteriserer|definerer|presenterer|forklarer|behandler|bruker)\b",
@@ -675,24 +746,21 @@ Context:
         ]
 
         generic_question_scaffold_patterns = [
-            # English leftovers
             r"\bhow\s+does\s+(?:describe|characterize|define|present|explain|treat|use|uses)\b",
             r"\bwhat\s+does\s+(?:say|write|think)\s+about\b",
             r"\bwhat\s+is\s+(?:view|thought)\s+on\b",
+            r"\bwhat\s+does\s+say\s+about\b",
+            r"\bwhat\s+does\s+say\b",
+            r"\bthe\s+period\b",
+            r"\bperiod\b",
             rf"\b(?:give|show|list|find|retrieve)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?(?:uses|{passage_terms})\b",
             r"\buses\b",
-
-            # Italian leftovers
             r"\bcome\s+(?:descrive|caratterizza|definisce|presenta|spiega|tratta|usa|utilizza)\b",
             r"\bin\s+che\s+modo\s+(?:descrive|caratterizza|definisce|presenta|spiega|tratta|usa|utilizza)\b",
             rf"\b(?:dammi|fammi|trovami|cercami|recupera|mostrami|elenca)\s+(?:tutti\s+i\s+|tutte\s+le\s+)?(?:usi|{passage_terms})\b",
-
-            # German leftovers
             r"\bwie\s+(?:beschreibt|charakterisiert|definiert|stellt|erklärt|behandelt|verwendet|benutzt)\b",
             r"\bwas\s+(?:sagt|schreibt|denkt)\s+(?:über|zu)\b",
             rf"\b(?:gib|zeige|liste|finde|suche)\s+(?:mir\s+)?(?:alle\s+)?(?:verwendungen|{passage_terms})\b",
-
-            # Norwegian leftovers
             r"\bhvordan\s+(?:beskriver|karakteriserer|definerer|presenterer|forklarer|behandler|bruker)\b",
             r"\bhva\s+(?:sier|skriver|tenker)\s+om\b",
             rf"\b(?:gi|vis|list|finn|hent)\s+(?:meg\s+)?(?:alle\s+)?(?:bruk|{passage_terms})\b",
@@ -707,23 +775,15 @@ Context:
         for pat in generic_question_scaffold_patterns:
             t = re.sub(pat, " ", t, flags=re.IGNORECASE)
 
-        # Final cleanup for common leftover request scaffolding.
         leftover_request_patterns = [
-            # English
             rf"\b(?:give|show|list|find|retrieve)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?(?:uses|{passage_terms})\b",
             rf"\b(?:all\s+)?{passage_terms}\b",
-
-            # Italian
             rf"\b(?:dammi|fammi|trovami|cercami|recupera|mostrami|elenca)\s+(?:tutti\s+i\s+|tutte\s+le\s+|tutti\s+|tutte\s+)?(?:gli\s+|le\s+)?(?:usi|{passage_terms})\b",
             rf"\b(?:tutti\s+i\s+|tutte\s+le\s+|tutti\s+|tutte\s+)?(?:gli\s+|le\s+)?{passage_terms}\b",
             r"\b(?:usa|utilizza|menziona|discute|parla\s+di|scrive\s+di)\b",
-
-            # German
             rf"\b(?:gib|zeige|liste|finde|suche)\s+(?:mir\s+)?(?:alle\s+)?(?:verwendungen|{passage_terms})\b",
             rf"\b(?:alle\s+)?{passage_terms}\b",
             r"\b(?:verwendet|benutzt|erwähnt|diskutiert|bespricht)\b",
-
-            # Norwegian
             rf"\b(?:gi|vis|list|finn|hent)\s+(?:meg\s+)?(?:alle\s+)?(?:bruk|{passage_terms})\b",
             rf"\b(?:alle\s+)?{passage_terms}\b",
             r"\bbruker\b",
@@ -731,6 +791,10 @@ Context:
 
         for pat in leftover_request_patterns:
             t = re.sub(pat, " ", t, flags=re.IGNORECASE)
+
+        # Remove document-type scaffolding from the semantic query. It is handled by metadata filters.
+        t = re.sub(r"\b(?:manuscripts?|typescripts?|manoscritt[oi]|dattiloscritt[oi]|handschriften?|typoskripte?)\b", " ", t, flags=re.IGNORECASE)
+        t = re.sub(r"\b(?:Ms-|Ts-|ms-|ts-)\b", " ", t, flags=re.IGNORECASE)
 
         t = re.sub(
             r"^(?:about|on|of|su|sul|sulla|sullo|sui|sugli|sulle|di|del|della|dello|dei|degli|delle|per|riguardo\s+a|intorno\s+a|über|zu|om|for)\s+",
@@ -745,9 +809,10 @@ Context:
             t,
             flags=re.IGNORECASE,
         )
+        
+        t = re.sub(r"\s*[-–]\s*", " ", t)
 
         return self._cleanup_semantic_query(t)
-    
 
     def _build_relevant_semantic_query(
         self,
@@ -758,15 +823,6 @@ Context:
         valid_refs_siglum: List[str],
         has_dates: bool,
     ) -> str:
-        """
-        Deterministically remove:
-        - Nachlass refs
-        - dates / date scaffolding
-        - author/corpus boilerplate
-        - request scaffolding
-
-        Return only the semantically relevant content phrase.
-        """
         q = processed_q or original_question or ""
 
         q = self._strip_listrefs_from_text(
@@ -778,9 +834,7 @@ Context:
         if has_dates:
             q = self._strip_dates_scaffolding(q)
 
-        # Extra safety: dates must not enter semantic retrieval even if LLM1 failed to detect them.
         q = self._strip_years(q)
-
         q = self._strip_sigla_tokens(q)
         q = self._strip_corpus_author_boilerplate(q)
         q = self._cleanup_semantic_query(q)
@@ -804,16 +858,7 @@ Context:
 
         return out
 
-    def _translate_retrieval_query(
-        self,
-        plain_query: str,
-        *,
-        target_languages: List[str],
-    ) -> Dict[str, str]:
-        """
-        Translate the clean retrieval query into compact multilingual equivalents.
-        This is ONLY translation, not conceptual rewriting or keyword expansion.
-        """
+    def _translate_retrieval_query(self, plain_query: str, *, target_languages: List[str]) -> Dict[str, str]:
         clean_query = self._cleanup_semantic_query(plain_query)
         targets = [t for t in target_languages if t]
 
@@ -865,8 +910,6 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
                 content = " ".join(str(x) for x in content)
 
             content = str(content).strip()
-
-            # Remove accidental Markdown fences.
             content = re.sub(r"^```(?:json)?\s*", "", content, flags=re.IGNORECASE)
             content = re.sub(r"\s*```$", "", content)
 
@@ -880,11 +923,8 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
             for lang in targets:
                 val = data.get(lang, "")
                 val = str(val)
-
-                # Remove dates from translations: dates are handled by metadata filters.
                 val = re.sub(r"\b(19\d{2}|20\d{2})\b", " ", val)
                 val = re.sub(r"\b(19\d{2}|20\d{2})\s*[-–]\s*(19\d{2}|20\d{2})\b", " ", val)
-
                 val = self._cleanup_semantic_query(val)
 
                 if val:
@@ -903,21 +943,11 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
         *,
         original_question: str,
     ) -> Tuple[str, bool, List[str], Dict[str, str]]:
-        """
-        Build a conservative multilingual retrieval query through translation.
-
-        Policy:
-        - If original user question is English, append German translation only.
-        - If original user question is German, append English translation only.
-        - If original user question is Italian or Norwegian, append English and German translations.
-        - Answer language is NOT affected by this.
-        """
         base = self._cleanup_semantic_query(retrieval_query)
 
         if not base:
             return base, False, [], {}
 
-        # Remove dates from base as well: dates are already handled by metadata filters.
         base = re.sub(r"\b(19\d{2}|20\d{2})\b", " ", base)
         base = re.sub(r"\b(19\d{2}|20\d{2})\s*[-–]\s*(19\d{2}|20\d{2})\b", " ", base)
         base = self._cleanup_semantic_query(base)
@@ -931,10 +961,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
         else:
             target_languages = ["English", "German"]
 
-        translations = self._translate_retrieval_query(
-            base,
-            target_languages=target_languages,
-        )
+        translations = self._translate_retrieval_query(base, target_languages=target_languages)
 
         parts = [base]
 
@@ -954,13 +981,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
 
         return expanded, applied, target_languages, translations
 
-    def _vector_search_sdk(
-        self,
-        query: str,
-        *,
-        k: int,
-        filters: Optional[str] = None,
-    ) -> List[Document]:
+    def _vector_search_sdk(self, query: str, *, k: int, filters: Optional[str] = None) -> List[Document]:
         clean_query = (query or "").strip()
 
         if not clean_query:
@@ -1013,11 +1034,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
         mode = (retrieval_mode or self.default_retrieval_mode or "vector").strip().lower()
 
         if mode == "vector":
-            return self._vector_search_sdk(
-                query=retrieval_query,
-                k=k,
-                filters=filter_expression,
-            )
+            return self._vector_search_sdk(query=retrieval_query, k=k, filters=filter_expression)
 
         if mode == "hybrid":
             return self.azure_search.similarity_search(
@@ -1036,9 +1053,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
                 search_type="similarity",
             )
 
-        raise ValueError(
-            "Unknown retrieval_mode: {}. Use 'vector', 'hybrid', or 'bm25'.".format(retrieval_mode)
-        )
+        raise ValueError("Unknown retrieval_mode: {}. Use 'vector', 'hybrid', or 'bm25'.".format(retrieval_mode))
 
     # -----------------------------
     # Ref-only intent routing for LLM2
@@ -1131,10 +1146,6 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
     # Language control for LLM2
     # -----------------------------
 
-    # -----------------------------
-    # Language control for LLM2
-    # -----------------------------
-
     @staticmethod
     def _detect_user_language(q: str) -> str:
         s = (q or "").strip()
@@ -1143,7 +1154,6 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
 
         s_lower = s.lower()
 
-        # Strong signals (umlauts etc.)
         if re.search(r"[äöüß]", s_lower):
             return "DE"
         if re.search(r"[æøå]", s_lower):
@@ -1195,15 +1205,12 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
         best_val = scores[best_lang]
         second_val = sorted(scores.values(), reverse=True)[1]
 
-        # Strong decision
         if best_val >= 2 and best_val >= second_val + 1:
             return best_lang
 
-        # 👇 FIX CHIAVE: anche con 1 solo segnale chiaro
         if best_val >= 1 and second_val == 0:
             return best_lang
 
-        # Fallback (ASCII → English)
         ascii_ratio = sum(1 for ch in s if ord(ch) < 128) / max(len(s), 1)
         if ascii_ratio >= 0.95:
             return "EN"
@@ -1219,7 +1226,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
         if lang_code == "NO":
             return "Answer in Norwegian."
         return "Answer in English."
-    
+
     # -----------------------------
     # Conflict detection
     # -----------------------------
@@ -1324,6 +1331,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
             "invalid_refs_df": invalid_refs_siglum,
             "document_level_refs": document_level_refs,
             "referenceList_for_llm1": referenceList_for_llm1,
+            "document_type_constraint": self.last_document_type_constraint,
             "filter_json": {},
             "llm1_drift_refs": [],
             "date_normalization_mode": "none",
@@ -1362,6 +1370,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
     ) -> Dict[str, Any]:
         session_id = str(uuid.uuid4())
         _ = temperature
+        self.last_document_type_constraint = None
 
         retrieval_mode = (retrieval_mode or self.default_retrieval_mode or "vector").strip().lower()
 
@@ -1438,9 +1447,39 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
 
         llm1_out = self._patch_llm1_dates(llm1_out, question)
 
+        # Deterministic document-type filter: manuscripts => Ms-, typescripts => Ts-.
+        llm1_out, doc_type_prefix, doc_type_conflict = self._apply_document_type_constraint(
+            llm1_out=llm1_out,
+            question=question,
+        )
+        if doc_type_conflict:
+            out = self._base_return_payload(
+                session_id=session_id,
+                question=question,
+                processed_q=processed_q,
+                referenceList=referenceList,
+                valid_refs_siglum=valid_refs_siglum,
+                invalid_refs_siglum=invalid_refs_siglum,
+                document_level_refs=document_level_refs,
+                referenceList_for_llm1=referenceList_for_llm1,
+                k=k,
+                retrieval_mode=retrieval_mode,
+            )
+            out["filter_json"] = llm1_out
+            out["answer"] = doc_type_conflict
+            return out
+
+        if doc_type_prefix and doc_type_prefix not in valid_refs_siglum:
+            # Expose the implicit type constraint in debug/metadata without pretending it was typed as a concrete ref.
+            if doc_type_prefix not in document_level_refs:
+                document_level_refs = document_level_refs + [doc_type_prefix]
+                self.last_document_level_refs = document_level_refs
+
         drift_refs: List[str] = []
         if valid_refs_siglum:
             allowed = set(valid_refs_siglum)
+            if doc_type_prefix:
+                allowed.add(doc_type_prefix)
             got = [_unescape_backslashes(x) for x in (llm1_out.get("listrefs") or [])]
             drift_refs = [x for x in got if x not in allowed]
 
@@ -1463,6 +1502,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
                     "invalid_refs_df": invalid_refs_siglum,
                     "document_level_refs": document_level_refs,
                     "referenceList_for_llm1": referenceList_for_llm1,
+                    "document_type_constraint": self.last_document_type_constraint,
                     "filter_json": llm1_out,
                     "llm1_drift_refs": drift_refs,
                     "date_normalization_mode": self.last_date_normalization_mode,
@@ -1488,12 +1528,11 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
 
         has_dates = bool(llm1_out.get("listdates"))
 
-        # --- Deterministic semantic query extraction ---
         retrieval_query_plain = self._build_relevant_semantic_query(
             original_question=question,
             processed_q=processed_q,
             llm1_out=llm1_out,
-            valid_refs_siglum=valid_refs_siglum,
+            valid_refs_siglum=valid_refs_siglum + ([doc_type_prefix] if doc_type_prefix else []),
             has_dates=has_dates,
         )
 
@@ -1507,7 +1546,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
                 fallback_q = self._strip_listrefs_from_text(
                     fallback_q,
                     listrefs_escaped=(llm1_out.get("listrefs") or []),
-                    valid_refs_siglum=valid_refs_siglum,
+                    valid_refs_siglum=valid_refs_siglum + ([doc_type_prefix] if doc_type_prefix else []),
                 )
                 if has_dates:
                     fallback_q = self._strip_dates_scaffolding(fallback_q)
@@ -1518,7 +1557,6 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
 
             retrieval_query_fallback_used = True
 
-        # --- Literal multilingual query translation ---
         retrieval_query_expanded = retrieval_query_plain
         query_expansion_applied = False
         query_translation_targets: List[str] = []
@@ -1556,6 +1594,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
             print("[DEBUG] Valid refs (DF):", valid_refs_siglum)
             print("[DEBUG] Invalid refs (DF):", invalid_refs_siglum)
             print("[DEBUG] Document-level refs:", document_level_refs)
+            print("[DEBUG] Document-type constraint:", self.last_document_type_constraint)
             if drift_refs:
                 print("[DEBUG][WARN] listrefs drift:", drift_refs)
             print("[DEBUG] Date normalization mode:", self.last_date_normalization_mode)
@@ -1638,6 +1677,7 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
             "invalid_refs_df": invalid_refs_siglum,
             "document_level_refs": document_level_refs,
             "referenceList_for_llm1": referenceList_for_llm1,
+            "document_type_constraint": self.last_document_type_constraint,
             "filter_json": llm1_out,
             "llm1_drift_refs": drift_refs,
             "date_normalization_mode": self.last_date_normalization_mode,
@@ -1680,13 +1720,20 @@ Output: {{"German": "Verstehen als geistiger Vorgang"}}
         print(out.get("retrieval_mode", ""))
         print("-" * 80)
 
-        print("FILTER EXPRESSION (OData):")
-        fe = out.get("filter_expression", None)
-        print(fe)
-        if fe:
-            print("Filter chars:", len(fe))
+        print("DOCUMENT TYPE CONSTRAINT:")
+        print(out.get("document_type_constraint", None))
         print("-" * 80)
 
+        print("FILTER EXPRESSION (OData):")
+        fe = out.get("filter_expression", None)
+
+        if fe:
+            print(f"[hidden] ({len(fe)} chars)")
+        else:
+            print(None)
+
+        print("-" * 80)
+        
         print("RETRIEVAL QUERY PLAIN:")
         print(out.get("retrieval_query_plain", out.get("retrieval_query", "")))
         print("-" * 80)
