@@ -49,8 +49,8 @@ def check_password() -> bool:
     return False
 
 
-if not check_password():
-    st.stop()
+#if not check_password():
+    #st.stop()
 
 # Copy Streamlit secrets into environment variables
 # so that HistoryBot and LangChain/Azure clients can read them via os.getenv()
